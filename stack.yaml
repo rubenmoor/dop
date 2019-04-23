@@ -1,0 +1,4 @@
+resolver: lts-13.14
+nix:
+  enable: true
+  shell-file: shell.nix
