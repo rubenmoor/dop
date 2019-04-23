@@ -2,13 +2,14 @@ module Main where
 
 import           Control.Monad               (foldM)
 import           Data.Text.IO                (putStrLn)
+import TextShow (showt)
 import           Data.Vector.Unboxed.Mutable (IOVector, clone, modify, read,
                                               replicate, write, length)
 import           Options.Applicative         (header, progDesc, fullDesc, execParser, helper, info, (<**>))
 import           Prelude                     ((<>), Bool (..), Double, IO, Int, mod,
                                               pure, undefined, ($), (*), (+),
                                               (-), (.), (<), (<$), (==), (>),
-                                              (||))
+                                              (||), seq)
 import           System.Random               (randomIO)
 
 import           Options                     (opts, Opts (..))
@@ -72,18 +73,24 @@ forLoop upd i n func = do
   upd' <- func upd i
   forLoop upd' (i + 1) n func
 
-randomGrid :: Int -> IO (GridUpdate, Grid)
-randomGrid gridWidth = do
+randomGrid :: Int -> Double -> IO (GridUpdate, Grid)
+randomGrid gridWidth density = do
   cellStates <- replicate (gridWidth * gridWidth) False
   nNeighbors <- replicate (gridWidth * gridWidth) (0 :: Int)
   update <- forLoop [] 0 (gridWidth * gridWidth) $ \update i -> do
     r <- randomIO
-    if (r :: Double) < 0.2
+    if (r :: Double) < density
       then do
         gridSet (gridWidth, cellStates, nNeighbors) i True
         pure $ (i, True) : update
       else pure update
   pure $ (update, (gridWidth, cellStates, nNeighbors))
+
+iterateGame :: Int -> Int -> Grid -> IO Grid
+iterateGame i n grid | i == n = pure grid
+iterateGame i n grid = do
+  (upd, grid') <- nextState grid
+  iterateGame (i + 1) n $ seq upd grid'
 
 main :: IO ()
 main = do
@@ -93,5 +100,11 @@ main = do
         <> header "run CGOL iterations using efficient vectors"
         )
   Opts {..} <- execParser myInfo
-  grid <- randomGrid optSize
-  putStrLn "Hu"
+  putStrLn $
+       "Grid size: "     <> showt optSize
+    <> ", #iterations: " <> showt optIterations
+    <> ", density: "     <> showt optDensity
+  (_, grid) <- randomGrid optSize optDensity
+  putStrLn "Grid initialized."
+  res <- iterateGame 0 optIterations grid
+  putStrLn $ seq res "Done!"
